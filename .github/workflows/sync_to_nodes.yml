@@ -1,0 +1,36 @@
+name: Sync to All Nodes
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  distribute:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare Clean Code
+        run: |
+          # Remove its own workflow directory before syncing to node repos
+          rm -rf .github/workflows
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git add .
+          git commit -m "Sync: remove workflows for nodes" || echo "No changes"
+
+      - name: Push to Node Repos
+        env:
+          PAT: ${{ secrets.SYNC_PAT }}
+          PREFIX: "doh-node"
+          COUNT: 100
+        run: |
+          OWNER="${{ github.repository_owner }}"
+          for i in $(seq -f "%03g" 1 $COUNT); do
+            REPO_NAME="${PREFIX}-${i}"
+            echo "Updating ${REPO_NAME}..."
+            git push "https://${PAT}@github.com/${OWNER}/${REPO_NAME}.git" HEAD:main --force
+          done
