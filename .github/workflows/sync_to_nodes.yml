@@ -28,11 +28,24 @@ jobs:
           PAT: ${{ secrets.SYNC_PAT }}
           PREFIX: "doh-node"
           COUNT: 100
+          CONCURRENCY: 10 # Number of parallel pushes
         run: |
           OWNER="${{ github.repository_owner }}"
           for i in $(seq -f "%03g" 1 $COUNT); do
             REPO_NAME="${PREFIX}-${i}"
-            echo "Updating ${REPO_NAME}..."
-            # Use x-access-token format for more reliable PAT authentication
-            git push "https://x-access-token:${PAT}@github.com/${OWNER}/${REPO_NAME}.git" HEAD:main --force
+            echo "Updating ${REPO_NAME} (parallel)..."
+            
+            # Run push in background
+            git push "https://x-access-token:${PAT}@github.com/${OWNER}/${REPO_NAME}.git" HEAD:main --force &
+            
+            # Limit concurrency
+            if [[ $(jobs -r | wc -l) -ge $CONCURRENCY ]]; then
+              wait -n
+            fi
           done
+          
+          # Wait for all remaining background jobs to finish
+          wait
+          echo "All nodes synchronized successfully!"
+
+
